@@ -177,6 +177,302 @@ public partial class Program
     }
 }
 
+public sealed class SplayTree<TKey, TValue>
+{
+    readonly IComparer<TKey> Comparer;
+
+    /// <summary>
+    /// Root node. Null if empty.
+    /// </summary>
+    Node T;
+
+    int CountCache;
+
+    public int Count
+    {
+        get { return CountCache; }
+    }
+
+    public SplayTree(IComparer<TKey> comparer = null)
+    {
+        Comparer = comparer ?? Comparer<TKey>.Default;
+    }
+
+    bool TryFindNode(TKey key, out Node found)
+    {
+        var z = T;
+        while (z != null)
+        {
+            var c = Comparer.Compare(z.Key, key);
+            if (c < 0)
+            {
+                z = z.R;
+            }
+            else if (c > 0)
+            {
+                z = z.L;
+            }
+            else
+            {
+                found = z;
+                return true;
+            }
+        }
+
+        found = default(Node);
+        return false;
+    }
+
+    public void Add(TKey newKey, TValue newValue)
+    {
+        var p = (Node)null;
+        {
+            var z = T;
+            while (z != null)
+            {
+                p = z;
+                z = Comparer.Compare(z.Key, newKey) < 0 ? z.R : z.L;
+            }
+        }
+
+        {
+            var z = new Node() { P = p, Key = newKey, Value = newValue };
+            if (p == null)
+            {
+                T = z;
+            }
+            else if (Comparer.Compare(p.Key, newKey) < 0)
+            {
+                p.R = z;
+            }
+            else
+            {
+                p.L = z;
+            }
+            Splay(z);
+        }
+
+        CountCache++;
+    }
+
+    public bool TryRemove(TKey key, out TValue value)
+    {
+        Node drop;
+        var found = TryFindNode(key, out drop);
+        if (!found)
+        {
+            value = default(TValue);
+            return false;
+        }
+
+        Splay(drop);
+
+        if (drop.L == null)
+        {
+            Replace(drop, drop.R);
+        }
+        else if (drop.R == null)
+        {
+            Replace(drop, drop.L);
+        }
+        else
+        {
+            var rightMin = drop.R.MinNode();
+
+            if (rightMin.P != drop)
+            {
+                Replace(rightMin, rightMin.R);
+                rightMin.R = drop.R;
+                rightMin.R.P = rightMin;
+            }
+
+            Replace(drop, rightMin);
+            rightMin.L = drop.L;
+            rightMin.L.P = rightMin;
+        }
+
+        CountCache--;
+        value = drop.Value;
+        return true;
+    }
+
+    void LeftRotate(Node x)
+    {
+        var y = x.R;
+        if (y != null)
+        {
+            x.R = y.L;
+            if (y.L != null) y.L.P = x;
+            y.P = x.P;
+        }
+
+        if (x.P == null)
+        {
+            T = y;
+        }
+        else if (x == x.P.L)
+        {
+            x.P.L = y;
+        }
+        else
+        {
+            x.P.R = y;
+        }
+
+        if (y != null) y.L = x;
+        x.P = y;
+    }
+
+    void RightRotate(Node x)
+    {
+        var y = x.L;
+        if (y != null)
+        {
+            x.L = y.R;
+            if (y.R != null) y.R.P = x;
+            y.P = x.P;
+        }
+
+        if (x.P == null)
+        {
+            T = y;
+        }
+        else if (x == x.P.L)
+        {
+            x.P.L = y;
+        }
+        else
+        {
+            x.P.R = y;
+        }
+
+        if (y != null) y.R = x;
+        x.P = y;
+    }
+
+    void Splay(Node x)
+    {
+        while (x.P != null)
+        {
+            if (x.P.P == null)
+            {
+                if (x.P.L == x)
+                {
+                    RightRotate(x.P);
+                }
+                else
+                {
+                    LeftRotate(x.P);
+                }
+            }
+            else if (x.P.L == x && x.P.P.L == x.P)
+            {
+                RightRotate(x.P.P);
+                RightRotate(x.P);
+            }
+            else if (x.P.R == x && x.P.P.R == x.P)
+            {
+                LeftRotate(x.P.P);
+                LeftRotate(x.P);
+            }
+            else if (x.P.L == x && x.P.P.R == x)
+            {
+                RightRotate(x.P);
+                LeftRotate(x.P);
+            }
+            else
+            {
+                LeftRotate(x.P);
+                RightRotate(x.P);
+            }
+        }
+    }
+
+    void Replace(Node u, Node v)
+    {
+        if (u.P == null)
+        {
+            T = v;
+        }
+        else if (u == u.P.L)
+        {
+            u.P.L = v;
+        }
+        else
+        {
+            u.P.R = v;
+        }
+
+        if (v != null)
+        {
+            v.P = u.P;
+        }
+    }
+
+    public KeyValuePair<TKey, TValue>[] ToArray()
+    {
+        var list = new List<KeyValuePair<TKey, TValue>>(Count);
+        if (T != null)
+        {
+            T.ToList(list);
+        }
+        return list.ToArray();
+    }
+
+    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
+    {
+        foreach (var entry in ToArray())
+        {
+            yield return entry;
+        }
+    }
+
+    sealed class Node
+    {
+        public TKey Key;
+        public TValue Value;
+        public Node P;
+        public Node L;
+        public Node R;
+
+        public Node MinNode()
+        {
+            return L != null ? L.MinNode() : this;
+        }
+
+        public Node MaxNode()
+        {
+            return R != null ? R.MaxNode() : this;
+        }
+
+        public void ToList(List<KeyValuePair<TKey, TValue>> builder)
+        {
+            if (L != null) L.ToList(builder);
+            builder.Add(new KeyValuePair<TKey, TValue>(Key, Value));
+            if (R != null) R.ToList(builder);
+        }
+    }
+}
+
+public static class SplayTree
+{
+    public static SplayTree<K, V> Create<K, V>()
+        where K : IComparable<K>
+    {
+        return new SplayTree<K, V>(Comparer<K>.Default);
+    }
+
+    public static SplayTree<K, V> ToSplayTree<T, K, V>(this IEnumerable<T> source, Func<T, K> keySelector, Func<T, V> valueSelector)
+    {
+        var tree = new SplayTree<K, V>(Comparer<K>.Default);
+        foreach (var item in source)
+        {
+            tree.Add(keySelector(item), valueSelector(item));
+        }
+        return tree;
+    }
+}
+
 public sealed partial class Program
 {
     private long Solve()
@@ -187,6 +483,32 @@ public sealed partial class Program
     public void EntryPoint()
     {
         var I = _scanner;
+
+        var Q = I.N();
+        var T = new int[Q];
+        var X = new int[Q];
+
+        for (var i = 0; i < Q; i++)
+        {
+            T[i] = I.N();
+            X[i] = I.N();
+        }
+
+        var tree = SplayTree.Create<int, int>();
+        for (var i = 0; i < Q; i++)
+        {
+            var x = X[i];
+            if (T[i] == 1)
+            {
+                tree.Add(x, 1);
+            }
+            else
+            {
+                // find node with left.count == x - 1
+                // print key
+                // remove it
+            }
+        }
 
         WriteLine(Solve());
     }
