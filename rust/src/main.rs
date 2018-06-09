@@ -103,85 +103,144 @@ fn _eprintln(args: fmt::Arguments) {
 // Solution
 // -----------------------------------------------
 
-type Vertex = usize;
-type EdgeId = usize;
+/// Vertex index.
+type VI = usize;
+
+/// Edge index.
+type EI = usize;
 
 #[derive(Clone, Debug)]
+struct Vertex {
+    id: VI,
+    edges: Vec<(VI, EI)>,
+
+    dfs_parent: Option<(VI, EI)>,
+    dfs_children: Vec<(VI, EI)>,
+    dfs_ord: usize,
+    dfs_done: bool,
+    /// これが属する2連結成分の代表元
+    comp_repr: Option<VI>,
+    /// これが属する2連結成分の位数
+    comp_size: usize,
+}
+
+/// bidirected, u < v
+#[derive(Clone, Debug)]
 struct Edge {
-    id: EdgeId,
-    u: usize,
-    v: usize,
+    id: EI,
+    u: VI,
+    v: VI,
+    dfs_done: bool,
+    imos: i32,
 }
 
 #[derive(Debug)]
 struct Graph {
-    ad: Vec<Vec<Edge>>,
-    edges: Vec<Edge>,
-}
-
-#[derive(Clone, Debug)]
-struct DfsTreeVertex {
-    parent_edge: Option<EdgeId>,
-    children: Vec<Vertex>,
-    ord: usize,
-    done: bool,
-}
-
-#[derive(Debug)]
-struct DfsTree<'a> {
-    graph: &'a Graph,
-    vertices: Vec<DfsTreeVertex>,
-    edge_is_used: Vec<bool>,
-    nextOrd: usize,
-}
-
-impl<'a> DfsTree<'a> {
-    pub fn new(graph: &Graph) -> DfsTree {
-        let mut t = DfsTree {
-            graph: graph,
-            vertices: vec![
-                DfsTreeVertex {
-                    parent_edge: None,
-                    children: Vec::new(),
-                    ord: 0,
-                    done: false,
-                };
-                graph.ad.len()
-            ],
-            edge_is_used: vec![false; graph.edges.len()],
-            nextOrd: 0,
-        };
-        t.walk(0, None);
-        t
-    }
-
-    fn walk(&mut self, v: usize, parent_edge: Option<&Edge>) {
-        if self.vertices[v].done {
-            return;
-        }
-
-        self.vertices[v].done = true;
-        self.vertices[v].ord = self.nextOrd;
-        self.nextOrd += 1;
-
-        if let Some(edge) = parent_edge {
-            self.edge_is_used[edge.id] = true;
-            self.vertices[v].parent_edge = Some(edge.id);
-            self.vertices[v].children.push(edge.v);
-        }
-
-        for edge in self.graph.ad[v].iter() {
-            self.walk(edge.v, Some(edge));
-        }
-    }
+    vs: Vec<Vertex>,
+    es: Vec<Edge>,
+    next_ord: usize,
 }
 
 impl Graph {
-    fn dfs(&self) -> DfsTree {
-        DfsTree::new(self)
+    fn is_bridge(&self, e: EI) -> bool {
+        self.es[e].imos == 0
     }
 
-    fn solve(&self) -> Vec<usize> {
+    fn dfs_walk(&mut self, v: usize, parent: Option<(VI, EI)>) {
+        if self.vs[v].dfs_done {
+            return;
+        }
+
+        self.vs[v].dfs_done = true;
+        self.vs[v].dfs_ord = self.next_ord;
+        self.next_ord += 1;
+
+        if let Some((p, e)) = parent {
+            self.es[e].dfs_done = true;
+            self.vs[v].dfs_parent = Some((p, e));
+            self.vs[p].dfs_children.push((v, e));
+        }
+
+        // NOTE: Can't iterate over edges because it may change in dfs_walk. Actually not, though.
+        let N = self.vs[v].edges.len();
+        for i in 0..N {
+            let (w, e) = self.vs[v].edges[i];
+            self.dfs_walk(w, Some((v, e)));
+        }
+    }
+
+    fn dfs(&mut self) {
+        for v in 0..self.vs.len() {
+            self.dfs_walk(v, None);
+        }
+    }
+
+    fn imos_first(&mut self) {
+        for ei in 0..self.es.len() {
+            let (a, d) = {
+                let edge = &self.es[ei];
+                if edge.dfs_done {
+                    continue;
+                }
+
+                if self.vs[edge.u].dfs_ord < self.vs[edge.v].dfs_ord {
+                    (edge.u, edge.v)
+                } else {
+                    (edge.v, edge.u)
+                }
+            };
+
+            if let Some((_, e)) = self.vs[a].dfs_parent {
+                debug!(e, -1);
+                self.es[e].imos -= 1;
+            }
+            if let Some((_, e)) = self.vs[d].dfs_parent {
+                debug!(e, 1);
+                self.es[e].imos += 1;
+            }
+        }
+    }
+
+    // dfsツリーにおいてvから伸びている各エッジがブリッジかどうか判定して、
+    // imos値の総和を返す
+    fn imos_acc_walk(&mut self, v: usize) -> i32 {
+        // imos (v -> **)
+        let mut sum = 0;
+        for ci in 0..self.vs[v].dfs_children.len() {
+            let (w, e) = self.vs[v].dfs_children[ci];
+
+            // imos(v -> w -> **) = imos(v -> w) + imos(w -> **)
+            self.es[e].imos += self.imos_acc_walk(w);
+
+            sum += self.es[e].imos;
+        }
+        sum
+    }
+
+    fn measure_component_walk(&mut self, v: usize, repr: VI) -> usize {
+        self.vs[v].comp_repr = Some(repr);
+        let mut size = 1;
+        for ei in 0..self.vs[v].edges.len() {
+            let (w, e) = self.vs[v].edges[ei];
+
+            if self.is_bridge(e) || self.vs[w].comp_repr.is_some() {
+                continue;
+            }
+            size += self.measure_component_walk(w, repr);
+        }
+        size
+    }
+
+    fn measure_components(&mut self) {
+        for v in 0..self.vs.len() {
+            self.vs[v].comp_size = match self.vs[v].comp_repr {
+                None => self.measure_component_walk(v, v),
+                Some(repr) => self.vs[repr].comp_size,
+            }
+        }
+    }
+
+    fn solve(&mut self) -> Vec<usize> {
         // 1. ブリッジを検出する。
         // 深さ優先ツリーを作る。
         // dfsツリーの中で、後退辺 (dfsツリーに含まれていない辺) は (両端の一方が他方の祖先なので、祖先を a、子孫を d とおく。d から親への辺を +1、a から親への辺を -1 する。
@@ -192,114 +251,58 @@ impl Graph {
 
         // 3. 各頂点につき、それが属す成分の位数が求める都市の個数。
 
-        let dfs_tree = self.dfs();
-        let mut dp = vec![0; self.edges.len()];
-        for e in self.edges.iter() {
-            if dfs_tree.edge_is_used[e.id] {
-                continue;
-            }
+        self.dfs();
+        self.imos_first();
+        self.imos_acc_walk(0);
+        self.measure_components();
+        debug!(self);
 
-            let (a, d) = if dfs_tree.vertices[e.u].ord < dfs_tree.vertices[e.v].ord {
-                (e.u, e.v)
-            } else {
-                (e.v, e.u)
-            };
-
-            if let Some(e) = dfs_tree.vertices[a].parent_edge {
-                debug!(e, -1);
-                dp[e] -= 1;
-            }
-            if let Some(e) = dfs_tree.vertices[d].parent_edge {
-                debug!(e, 1);
-                dp[e] += 1;
-            }
-        }
-        debug!(dfs_tree, dp);
-
-        fn go(v: usize, tree: &DfsTree, dp: &mut Vec<i32>) -> i32 {
-            let mut sum = 0;
-            for &child in tree.vertices[v].children.iter() {
-                if let Some(e) = tree.vertices[v].parent_edge {
-                    sum += dp[e];
-                }
-                sum += go(child, tree, dp);
-            }
-            sum
-        }
-        go(0, &dfs_tree, &mut dp);
-        debug!(dp);
-
-        // dp[e] == 0 <=> e: bridge
-        let is_bridge = move |e: EdgeId| dp[e] == 0;
-
-        fn component_size<F: Fn(EdgeId) -> bool>(
-            v: usize,
-            root: usize,
-            graph: &Graph,
-            roots: &mut Vec<Option<usize>>,
-            is_bridge: &F,
-        ) -> usize {
-            roots[v] = Some(root);
-            let mut size = 1;
-
-            for e in graph.ad[v].iter() {
-                if is_bridge(e.id) || roots[e.v].is_some() {
-                    continue;
-                }
-
-                size += component_size(e.v, root, graph, roots, is_bridge);
-            }
-
-            size
-        }
-        let mut sizes = vec![0; self.ad.len()];
-        let mut roots = vec![None; self.ad.len()];
-        for v in 0..self.ad.len() {
-            if roots[v].is_some() {
-                continue;
-            }
-
-            sizes[v] = component_size(v, v, self, &mut roots, &is_bridge);
-        }
-        for v in 0..self.ad.len() {
-            sizes[v] = sizes[roots[v].unwrap()];
-        }
-
-        sizes
+        self.vs.iter().map(|v| v.comp_size).collect::<Vec<_>>()
     }
 }
 
 pub fn main() {
     let w = rw::<usize>();
     let (N, K, L) = (w[0], w[1], w[2]);
+    let M = K + L;
 
-    let mut G = vec![Vec::new(); N];
-    let mut edges = Vec::new();
+    let mut vs = (0..N)
+        .map(|v| Vertex {
+            id: v,
+            edges: Vec::new(),
 
-    for _ in 0..(K + L) {
+            dfs_parent: None,
+            dfs_children: Vec::new(),
+            dfs_ord: 0,
+            dfs_done: false,
+            comp_repr: None,
+            comp_size: 0,
+        })
+        .collect::<Vec<_>>();
+
+    let mut es = (0..M)
+        .map(|e| Edge {
+            id: e,
+            u: 0,
+            v: 0,
+            dfs_done: false,
+            imos: 0,
+        })
+        .collect::<Vec<_>>();
+
+    for e in 0..M {
         let w = rw::<usize>();
         let (u, v) = (w[0] - 1, w[1] - 1);
-
-        let e = Edge {
-            id: edges.len(),
-            u: u,
-            v: v,
-        };
-        edges.push(e.clone());
-        G[u].push(e);
-
-        let e = Edge {
-            id: edges.len(),
-            u: v,
-            v: u,
-        };
-        G[v].push(e.clone());
-        edges.push(e);
+        es[e].u = u;
+        es[e].v = v;
+        vs[u].edges.push((v, e));
+        vs[v].edges.push((u, e));
     }
 
     let sizes = Graph {
-        ad: G,
-        edges: edges,
+        vs: vs,
+        es: es,
+        next_ord: 0,
     }.solve();
 
     println!(
