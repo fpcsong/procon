@@ -1,5 +1,5 @@
+#![allow(unused)]
 use std::cmp::{Ord, Ordering};
-use std::iter::*;
 use std::mem::replace;
 
 /// Invariants:
@@ -43,14 +43,9 @@ where
         }
     }
 
-    pub fn map<F: Fn(&TKey, &T) -> T>(&self, f: &F) -> Self {
-        Node {
-            key: self.key.clone(),
-            value: f(&self.key, &self.value),
-            l: self.l.as_ref().map(|ref l| Box::new(l.map(f))),
-            r: self.r.as_ref().map(|ref r| Box::new(r.map(f))),
-            ..*self
-        }
+    pub fn make_black(mut self: Box<Self>) -> Box<Self> {
+        self.color = B;
+        self
     }
 
     pub fn insert(mut self: Box<Self>, key: TKey, value: T) -> Box<Self> {
@@ -58,7 +53,16 @@ where
             Ordering::Equal => {
                 panic!("duplicated key");
             }
-            Ordering::Less => self,
+            Ordering::Less => {
+                let mut r = replace(&mut self.r, None);
+                let mut r = match r {
+                    None => Box::new(Node::new(Color::Red, key, value)),
+                    Some(r) => r.insert(key, value).balance(),
+                };
+                self.r = Some(r);
+                self.update_size();
+                self.balance()
+            }
             Ordering::Greater => {
                 let mut l = replace(&mut self.l, None);
                 let mut l = match l {
@@ -66,9 +70,16 @@ where
                     Some(l) => l.insert(key, value).balance(),
                 };
                 self.l = Some(l);
+                self.update_size();
                 self.balance()
             }
         }
+    }
+
+    fn update_size(&mut self) {
+        let ln = self.l.as_ref().map(|n| n.size).unwrap_or(0);
+        let rn = self.r.as_ref().map(|n| n.size).unwrap_or(0);
+        self.size = ln + rn + 1;
     }
 
     fn balance(mut self: Box<Self>) -> Box<Self> {
@@ -88,61 +99,129 @@ where
         match (self.color, colors(&self.l), colors(&self.r)) {
             (B, (Some(R), Some(R), _), _) => {
                 // Rotate from:
-                //             self
-                //            /    \
-                //          [l]     r
-                //         /  \
-                //     [ll]    lr
-                // to:
-                //            l
+                //             (self)
+                //             /    \
+                //           [l]
                 //           /  \
-                //       [ll]   [self]
-                //              /     \
-                //            lr       r
-                // where [_] is red.
+                //       [ll]    lr
+                // to:
+                //           [l]
+                //           /  \
+                //       (ll)  (self)
+                //             /    \
+                //            lr
+                // where [_] is red and (_) is black.
 
                 let mut l = replace(&mut self.l, None).unwrap();
                 let mut lr = replace(&mut l.r, None);
 
-                self.color = R;
-                l.color = B;
+                l.l.as_mut().unwrap().color = B;
 
                 self.l = lr;
+                self.update_size();
+
                 l.r = Some(self);
+                l.update_size();
+
                 l
             }
             (B, (Some(R), _, Some(R)), _) => {
                 // Rotate from:
-                //          self
+                //         (self)
                 //         /    \
-                //        l      r
+                //       [l]
                 //       /  \
-                //     ll    lr
+                //          [lr]
                 //          /  \
                 //        lrl   lrr
                 // to:
-                //           lr
+                //          [lr]
                 //         /    \
-                //        l      self
+                //       (l)    (self)
                 //      /   \    /   \
-                //     ll   lrl lrr   r
+                //          lrl lrr
 
                 let mut l = replace(&mut self.l, None).unwrap();
                 let mut lr = replace(&mut l.r, None).unwrap();
                 let mut lrl = replace(&mut lr.l, None);
                 let mut lrr = replace(&mut lr.r, None);
 
-                self.color = R;
-                lr.color = B;
+                l.color = B;
 
                 self.l = lrr;
+                self.update_size();
+
                 l.r = lrl;
+                l.update_size();
+
                 lr.l = Some(l);
                 lr.r = Some(self);
+                lr.update_size();
 
                 lr
             }
-            (B, _, (Some(R), Some(R), _)) => self,
+            (B, _, (Some(R), _, Some(R))) => {
+                // Rotate from:
+                //      (self)
+                //      /    \
+                //     l     [r]
+                //           /  \
+                //         rl   [rr]
+                // to:
+                //           [r]
+                //          /   \
+                //      (self)  (rr)
+                //      /    \
+                //     l      rl
+
+                let mut r = replace(&mut self.r, None).unwrap();
+                let mut rl = replace(&mut r.l, None);
+
+                r.r.as_mut().unwrap().color = B;
+
+                self.r = rl;
+                self.update_size();
+
+                r.l = Some(self);
+                r.update_size();
+
+                r
+            }
+            (B, _, (Some(R), Some(R), _)) => {
+                // Rotate from:
+                //         (self)
+                //         /    \
+                //              [r]
+                //              /  \
+                //            [rl]
+                //            /  \
+                //          rll   rlr
+                // to:
+                //            [rl]
+                //           /    \
+                //      (self)      (r)
+                //       /   \     /   \
+                //          rll   rlr
+
+                let mut r = replace(&mut self.r, None).unwrap();
+                let mut rl = replace(&mut r.l, None).unwrap();
+                let mut rll = replace(&mut rl.l, None);
+                let mut rlr = replace(&mut rl.r, None);
+
+                r.color = B;
+
+                self.r = rll;
+                self.update_size();
+
+                r.l = rlr;
+                r.update_size();
+
+                rl.l = Some(self);
+                rl.r = Some(r);
+                rl.update_size();
+
+                rl
+            }
             _ => self,
         }
     }
@@ -175,39 +254,97 @@ where
         }
 
         let root = replace(&mut self.root, None);
-        self.root = Some(root.unwrap().insert(key, value));
-    }
-
-    fn balance(&mut self) {}
-
-    pub fn map<F: Fn(&TKey, &T) -> T>(&self, f: F) -> Self {
-        match self.root {
-            None => Self::new(),
-            Some(ref root) => RedBlackTree {
-                root: Some(Box::new(root.map(&f))),
-            },
-        }
+        self.root = Some(root.unwrap().insert(key, value).make_black())
     }
 }
 
 #[cfg(test)]
+#[allow(unused_imports)]
 mod tests {
-    use super::{Color, RedBlackTree};
+    use super::{Color, Node, RedBlackTree};
+    use std;
+    use std::cmp::max;
+    use std::io::*;
+    use std::iter::repeat;
+
+    fn draw<K: ToString, V: ToString>(tree: &RedBlackTree<K, V>) -> String {
+        match tree.root {
+            None => "(empty)".to_owned(),
+            Some(ref node) => draw_node(node).1.join("\n"),
+        }
+    }
+
+    fn draw_node<K: ToString, V: ToString>(node: &Node<K, V>) -> (usize, Vec<String>) {
+        let k = node.key.to_string();
+        let v = node.value.to_string();
+        let s = match (node.color, node.size) {
+            (Color::Black, 1) => format!("({})", k),
+            (Color::Red, 1) => format!("[{}]", k),
+            (Color::Black, size) => format!("({} #{})", k, size),
+            (Color::Red, size) => format!("[{} #{}])", k, size),
+        };
+        if node.l.is_none() && node.r.is_none() {
+            return (s.len(), vec![s]);
+        }
+
+        let (lw, l) = node.l.as_ref().map(|n| draw_node(n)).unwrap_or((0, vec![]));
+        let (rw, r) = node.r.as_ref().map(|n| draw_node(n)).unwrap_or((0, vec![]));
+
+        let replicate = |n: usize, x: char| repeat(x).take(n).collect::<String>();
+        let pad = |s: &str, width: usize| {
+            s.chars()
+                .chain(repeat(' ').take(width - s.len()))
+                .collect::<String>()
+        };
+        let shift =
+            |s: &str, width: usize| repeat(' ').take(width).chain(s.chars()).collect::<String>();
+
+        let w = max(lw + rw, s.len()) + 1;
+
+        let root_row = shift(&s, (w - s.len()) / 2);
+        let edge_row = format!(
+            "{}{}{}{}",
+            replicate(lw / 2, ' '),
+            if !l.is_empty() { '/' } else { ' ' },
+            replicate((lw + 1) / 2 + rw / 2, ' '),
+            if !r.is_empty() { '\\' } else { ' ' }
+        );
+        let h = max(l.len(), r.len());
+        let v = l.into_iter()
+            .chain(repeat(String::default()))
+            .zip(r.into_iter().chain(repeat(String::default())))
+            .take(h)
+            .map(|(ls, rs)| format!("{}{}", ls, shift(&rs, w - rw - ls.len())))
+            .collect::<Vec<_>>();
+
+        let lines = vec![root_row, edge_row]
+            .into_iter()
+            .chain(v.into_iter())
+            .map(|line| line.trim_right().to_owned())
+            .collect::<Vec<_>>();
+
+        (w, lines)
+    }
 
     #[test]
-    fn test_insert() {
+    fn test_draw() {
         let mut t = RedBlackTree::new();
 
-        t.insert(3, "b");
-        t.insert(2, "a");
+        for n in 1..17 {
+            t.insert(n, (('a' as u8 + n) as char).to_string());
+        }
 
-        let root = t.root.as_ref().unwrap();
-        assert_eq!(Color::Black, root.color);
-
-        assert_eq!("b", root.value);
-
-        let l = root.l.as_ref().unwrap();
-        assert_eq!(Color::Red, l.color);
-        assert_eq!("a", l.value);
+        assert_eq!(
+            r#"               (8 #16)
+       /                   \
+    (4 #7)             (12 #8)
+   /       \        /          \
+(2 #3)  (6 #3)  (10 #3)     (14 #4)
+ /   \   /   \   /    \    /      \
+(1) (3) (5) (7) (9) (11) (13) (15 #2)
+                                 \
+                                  [16]"#,
+            draw(&t)
+        );
     }
 }
