@@ -7,16 +7,23 @@ use std::mem::replace;
 /// 1. Every red node has no red children.
 /// 2. Every path from root to leaf contains exactly same number of black nodes.
 pub struct RedBlackTree<TKey, T> {
-    root: Option<Box<Node<TKey, T>>>,
+    /// 0 if empty.
+    root: usize,
+    /// [0] is always invalid.
+    node: Vec<Node<TKey, T>>,
 }
 
 struct Node<TKey, T> {
+    /// The number of nodes in the subtree.
+    /// 0 if invalid.
     size: usize,
+    /// 0 if invalid.
+    l: usize,
+    /// 0 if invalid.
+    r: usize,
+    /// Black if invalid.
     color: Color,
-    key: TKey,
-    value: T,
-    l: Option<Box<Node<TKey, T>>>,
-    r: Option<Box<Node<TKey, T>>>,
+    content: Option<(TKey, T)>,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
