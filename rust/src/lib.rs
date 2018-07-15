@@ -19,7 +19,7 @@ mod tests {
 // Annotate snippet name
 #[snippet = "mymath"]
 #[snippet = "gcd"]
-fn gcd(a: u64, b: u64) -> u64 {
+pub fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 {
         a
     } else {
@@ -31,14 +31,14 @@ fn gcd(a: u64, b: u64) -> u64 {
 #[snippet(name = "mymath")]
 // Equivalent to #[snippet = "lcm"]
 #[snippet]
-fn lcm(a: u64, b: u64) -> u64 {
+pub fn lcm(a: u64, b: u64) -> u64 {
     a / gcd(a, b) * b
 }
 
 #[snippet]
 // Include snippet
 #[snippet(include = "gcd")]
-fn gcd_list(list: &[u64]) -> u64 {
+pub fn gcd_list(list: &[u64]) -> u64 {
     list.iter().fold(list[0], |a, b| gcd(a, *b))
 }
 

@@ -3,5 +3,5 @@ name = "rust-procon"
 version = "0.1.0"
 authors = ["vain0x <vainzerox@gmail.com>"]
 
-[dependencies.cargo-snippet]
-version = "0.2"
+[dependencies]
+cargo-snippet = "0.2"
