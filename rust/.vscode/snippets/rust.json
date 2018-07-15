@@ -1,15 +1,8 @@
 {
-  "hoge": {
-    "prefix": "hoge",
-    "body": [
-      "a",
-      "i"
-    ]
-  },
   "gcd": {
     "prefix": "gcd",
     "body": [
-      "fn gcd(a: u64, b: u64) -> u64 {",
+      "pub fn gcd(a: u64, b: u64) -> u64 {",
       "    if b == 0 {",
       "        a",
       "    } else {",
@@ -21,14 +14,14 @@
   "gcd_list": {
     "prefix": "gcd_list",
     "body": [
-      "fn gcd(a: u64, b: u64) -> u64 {",
+      "pub fn gcd(a: u64, b: u64) -> u64 {",
       "    if b == 0 {",
       "        a",
       "    } else {",
       "        gcd(b, a % b)",
       "    }",
       "}",
-      "fn gcd_list(list: &[u64]) -> u64 {",
+      "pub fn gcd_list(list: &[u64]) -> u64 {",
       "    list.iter().fold(list[0], |a, b| gcd(a, *b))",
       "}"
     ]
@@ -36,7 +29,7 @@
   "lcm": {
     "prefix": "lcm",
     "body": [
-      "fn lcm(a: u64, b: u64) -> u64 {",
+      "pub fn lcm(a: u64, b: u64) -> u64 {",
       "    a / gcd(a, b) * b",
       "}"
     ]
@@ -44,15 +37,29 @@
   "mymath": {
     "prefix": "mymath",
     "body": [
-      "fn gcd(a: u64, b: u64) -> u64 {",
+      "pub fn gcd(a: u64, b: u64) -> u64 {",
       "    if b == 0 {",
       "        a",
       "    } else {",
       "        gcd(b, a % b)",
       "    }",
       "}",
-      "fn lcm(a: u64, b: u64) -> u64 {",
+      "pub fn lcm(a: u64, b: u64) -> u64 {",
       "    a / gcd(a, b) * b",
+      "}"
+    ]
+  },
+  "tests": {
+    "prefix": "tests",
+    "body": [
+      "#[cfg(test)]",
+      "mod tests {",
+      "    #[allow(unused_imports)]",
+      "    use super::*;",
+      "    #[test]",
+      "    fn test_ok() {",
+      "        assert_eq!(7, 1 + 2 * 3);",
+      "    }",
       "}"
     ]
   }

@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Install cargo-snippet if missing.
+if [ -z "$(cargo list | grep snippet)" ] ; then
+    echo "Installing cargo-snippet..." >&2 ;
+    cargo install cargo-snippet --features="binaries" ;
+fi ;
+
+cargo snippet -t vscode > .vscode/snippets/rust.json

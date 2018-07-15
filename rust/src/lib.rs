@@ -6,6 +6,7 @@ pub mod procon;
 // Stub of tests mod.
 
 #[cfg(test)]
+#[snippet]
 mod tests {
     #[allow(unused_imports)]
     use super::*;
