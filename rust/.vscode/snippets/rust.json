@@ -1,4 +1,11 @@
 {
+  "hoge": {
+    "prefix": "hoge",
+    "body": [
+      "a",
+      "i"
+    ]
+  },
   "gcd": {
     "prefix": "gcd",
     "body": [
