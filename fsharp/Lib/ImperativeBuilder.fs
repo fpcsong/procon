@@ -1,7 +1,6 @@
 namespace global
   open System
 
-  [<RequireQualifiedAccess>]
   type Imp<'T> =
     | Step
     | Break
@@ -17,38 +16,38 @@ namespace global
 
     member __.Run(f: unit -> Imp<'r>): 'r =
       match f () with
-      | Imp.Ret x ->
+      | Ret x ->
         x
-      | Imp.Step
-      | Imp.Break
-      | Imp.Next ->
+      | Step
+      | Break
+      | Next ->
         InvalidProgramException() |> raise
 
     member __.Zero(): Imp<'r> =
-      Imp.Step
+      Step
 
     member __.Return(r: 'r): Imp<'r> =
-      Imp.Ret r
+      Ret r
 
     member __.ReturnFrom(m: Imp<'r>): Imp<'r> =
       m
 
     member __.Bind(m: Imp<_>, f: unit -> Imp<_>): Imp<_> =
       match m with
-      | Imp.Step ->
+      | Step ->
         f ()
-      | Imp.Break
-      | Imp.Next
-      | Imp.Ret _ ->
+      | Break
+      | Next
+      | Ret _ ->
         m
 
     member __.Combine(r: Imp<'r>, f: unit -> Imp<'r>): Imp<'r> =
       match r with
-      | Imp.Step ->
+      | Step ->
         f ()
-      | Imp.Break
-      | Imp.Next
-      | Imp.Ret _ ->
+      | Break
+      | Next
+      | Ret _ ->
         r
 
     member __.Using(x: 'r, f: 'r -> Imp<'y>): Imp<'y> =
@@ -71,15 +70,15 @@ namespace global
       let rec loop () =
         if p () then
           match f () with
-          | Imp.Step
-          | Imp.Next ->
+          | Step
+          | Next ->
             loop ()
-          | Imp.Break ->
-            Imp.Step
-          | Imp.Ret _ as r ->
+          | Break ->
+            Step
+          | Ret _ as r ->
             r
         else
-          Imp.Step
+          Step
       loop ()
 
     member this.For(xs: #seq<'x>, body: 'x -> Imp<'r>): Imp<'r> =
