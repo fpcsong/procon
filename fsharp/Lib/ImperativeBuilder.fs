@@ -20,11 +20,6 @@ namespace global
     member __.Return(r) = Ret r
     member __.ReturnFrom(m: Imp<_>) = m
 
-    member __.Bind(m: Imp<_>, f) =
-      match m with
-      | Step                  -> f ()
-      | Break | Next | Ret _  -> m
-
     member __.Combine(r: Imp<_>, f) =
       match r with
       | Step                  -> f ()
