@@ -2,22 +2,22 @@ module Procon.ImperativeBuilderTests
 
 open Xunit
 
-let imperative = ImperativeBuilder.Instance
-let Break = ImperativeState.Break
-let Continue = ImperativeState.Continue
+let imp = ImperativeBuilder.Instance
+let Break = Imp.Break
+let Next = Imp.Next
 
 [<Fact>]
 let testEmpty () =
-  imperative { () } |> is ()
+  imp { () } |> is ()
 
 [<Fact>]
 let testReturn () =
-  imperative { return 1 } |> is 1
+  imp { return 1 } |> is 1
 
 [<Fact>]
 let testUsing () =
   let deferred = ref 0
-  imperative {
+  imp {
     use _x = defer <| fun () ->
       deferred |> incr
     return ! deferred
@@ -27,7 +27,7 @@ let testUsing () =
 [<Fact>]
 let testCombine () =
   let mutable c = 1
-  imperative {
+  imp {
     c <- c + 2
     c <- c * 3
   } |> is ()
@@ -36,7 +36,7 @@ let testCombine () =
 [<Fact>]
 let testWhile () =
   let mutable i = 0
-  imperative {
+  imp {
     while i < 10 do
       i <- i + 1
     return i * 2
@@ -46,7 +46,7 @@ let testWhile () =
 [<Fact>]
 let testFor () =
   let mutable c = 0
-  imperative {
+  imp {
     for i in 1..9 do
       c <- c + i
     return c * 2
@@ -56,7 +56,7 @@ let testFor () =
 [<Fact>]
 let testWhileBreak () =
   let mutable i = 0
-  imperative {
+  imp {
     while i < 1000 do
       i <- i + 1
       if i >= 10 then
@@ -68,12 +68,12 @@ let testWhileBreak () =
 let testWhileContinue () =
   let mutable s = 1
   let mutable i = 1
-  imperative {
+  imp {
     while i <= 8 do
       use _x = defer <| fun () ->
         i <- i + 1
       if i = 7 then
-        return! Continue
+        return! Next
       s <- s * i
   } |> is ()
   s |> is (40320 / 7)
@@ -81,7 +81,7 @@ let testWhileContinue () =
 [<Fact>]
 let testBreakFromNestedLoop () =
   let mutable k = 0
-  imperative {
+  imp {
     for _ in 1..8 do
       for y in 1..8 do
         if y = 3 then
@@ -94,7 +94,7 @@ let testBreakFromNestedLoop () =
 [<Fact>]
 let testReturnFromNestedLoop () =
   let mutable k = 0
-  imperative {
+  imp {
     for x in 1..8 do
       for y in 1..8 do
         if (x, y) = (2, 5) then
