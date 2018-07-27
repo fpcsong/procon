@@ -2,10 +2,6 @@ module Procon.ImperativeBuilderTests
 
 open Xunit
 
-let imp = ImperativeBuilder.Instance
-let Break = Imp.Break
-let Next = Imp.Next
-
 [<Fact>]
 let testEmpty () =
   imp { () } |> is ()

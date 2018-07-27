@@ -1,4 +1,5 @@
-namespace global
+[<AutoOpen>]
+module ImperativeBuilderExtensions
   open System
 
   type Imp<'T> =
@@ -7,7 +8,7 @@ namespace global
     | Next
     | Ret of 'T
 
-  type ImperativeBuilder private () =
+  type ImperativeBuilder() =
     member __.Delay(f: unit -> Imp<_>) = f
 
     member __.Run(f: unit -> Imp<unit>) = f () |> ignore
@@ -43,4 +44,4 @@ namespace global
       use e = xs.GetEnumerator()
       this.While(e.MoveNext, fun () -> body e.Current)
 
-    static member val Instance = ImperativeBuilder()
+  let imp = ImperativeBuilder()
