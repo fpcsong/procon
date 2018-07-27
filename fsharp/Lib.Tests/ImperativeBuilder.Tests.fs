@@ -99,3 +99,19 @@ let testReturnFromNestedLoop () =
     return -1
   } |> is 12
   k |> is 12
+
+[<Fact>]
+let testStaticThrow () =
+  let mutable k = 0
+  let rec find yk ps =
+    impE {
+      match ps with
+      | [] ->
+        return! Throw "Missing"
+      | (xk, v) :: _ when xk = yk ->
+        return Ok v
+      | _ :: ps ->
+        return find yk ps
+    }
+  find 1 [1, 2; 2, 3] |> is (Ok 2)
+  find 9 [1, 2; 2, 3] |> is (Error "Missing")
