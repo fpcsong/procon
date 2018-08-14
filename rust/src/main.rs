@@ -31,6 +31,31 @@ macro_rules! read {
     }};
 }
 
+macro_rules! object {
+    (
+        $obj_name:ident (
+            $($arg_name:ident : $arg_ty:ty),* $(,)*
+        ) {
+            $(let $var_pat:pat = $var_init:expr;)*
+            $(val $field_name:ident : $field_ty:ty = $field_init:expr;)*
+        }
+    ) => {
+        struct $obj_name {
+            $($field_name : $field_ty),*
+        }
+
+        impl $obj_name {
+            fn new($($arg_name : $arg_ty),*) -> $obj_name {
+                $(let $var_pat = $var_init;)*
+                $(let $field_name : $field_ty = $field_init;)*
+                $obj_name {
+                    $($field_name : $field_name),*
+                }
+            }
+        }
+    };
+}
+
 #[allow(unused_macros)]
 macro_rules! debug {
     ($($arg:expr),*) => {
@@ -58,6 +83,32 @@ impl<T: Iterator> IteratorExt for T {}
 // Solution
 // -----------------------------------------------
 
+// object!(Solver() {
+//     let a = 0;
+//     val N: usize = read!(usize);
+// });
+
+// impl Solver {
+//     fn run(mut self) {
+//         println!("{}", 0);
+//     }
+// }
+
+struct Solver {
+    N: usize,
+}
+
+impl Solver {
+    fn new() -> Solver {
+        let N = read!(usize);
+        Solver { N: N }
+    }
+
+    fn run(mut self) {
+        println!("{}", 0)
+    }
+}
+
 fn main() {
-    println!("{}", 0)
+    Solver::new().run()
 }
